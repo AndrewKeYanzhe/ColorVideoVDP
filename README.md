@@ -1,3 +1,89 @@
+## Notes by Andrew
+
+*Note: The notes below reflect my current understanding of ColorVideoVDP. If you spot any inaccuracies, feel free to open an issue.*
+
+### 1. Does ColorVideoVDP consider viewer distance, screen size, and surround luminance (lux)?
+
+> [!TIP]
+> 💡 **Short Answer: Yes.** In addition to viewer distance and screen size (which define pixels per degree, `n_ppd`), ColorVideoVDP explicitly considers ambient surround illumination in **lux** (`E_ambient`) as well as screen reflectivity (`k_refl`).
+
+#### How Ambient Lux (`E_ambient`) is Used in ColorVideoVDP
+
+In the photometric display model (`pycvvdp/display_model.py`), ambient light is processed in three key ways:
+
+1. **Screen Reflection & Effective Contrast Reduction (Physical Cause & Perceptual Impact)**
+   Ambient illumination reflecting off the screen surface creates a diffuse light floor (`Y_refl`):
+   
+   `Y_refl = (E_ambient / pi) * k_refl`
+   
+   This reflected light is added to the absolute light emitted by every pixel across the image or video:
+   
+   `Luminance = (Y_peak - Y_black) * EOTF(pixel) + Y_black + Y_refl`
+   
+   Raising the baseline light level compresses the display's **effective contrast** from its theoretical maximum down to:
+   
+   `Effective Contrast = Y_peak / (Y_black + Y_refl)`
+   
+   Perceptually, because human contrast sensitivity (castleCSF) depends on local background luminance, this higher baseline light reduces the eye's ability to detect subtle details and distortions in dark/shadow regions.
+
+2. **Dynamic HLG Gamma Adaptation**
+   For HDR content encoded with HLG (Hybrid Log-Gamma), ambient lux is used to adjust the display's target gamma according to ambient viewing conditions:
+   
+   `gamma = 1.2 + 0.42 * log10(Y_peak / 1000) - 0.07623 * log10(E_ambient / 5)`
+
+> [!WARNING]
+> ⚠️ **Limitation: Screen-Focused State vs. External Viewer Adaptation**  
+> ColorVideoVDP focuses on the physical state of the screen (reflected glare `Y_refl` and emitted pixel luminance) and the eye's local adaptation to the screen image. **It does NOT model external surround eye adaptation outside the display.**  
+>  
+> *Example*: If a viewer is sitting outside on a bright sunny balcony looking at a phone screen, their pupils will constrict due to ambient sunlight, reducing overall visual sensitivity—a global surround adaptation effect that ColorVideoVDP does not track. The metric assumes the viewer's vision is adapted to the light level of the display itself.
+
+#### Setting Ambient Lux in Practice
+
+You can specify ambient illumination when setting up a display configuration or creating a custom JSON display file:
+
+```json
+{
+  "office_display": {
+    "name": "4K monitor in bright office",
+    "resolution": [3840, 2160],
+    "viewing_distance_meters": 0.8,
+    "diagonal_size_inches": 32,
+    "max_luminance": 350,
+    "contrast": 1000,
+    "E_ambient": 250,    // Ambient surround light in lux (e.g. 250 lux office light)
+    "k_refl": 0.01       // Screen reflectivity (1% for standard matte screen)
+  }
+}
+```
+
+* **Dim / Dark room**: `E_ambient = 5` to `20` lux
+* **Standard office environment**: `E_ambient = 150` to `300` lux
+* **Bright daylight / Outdoor**: `E_ambient = 1000+` lux
+
+---
+
+### 2. How did Rafał's team collect the subjective test data? Was it tested in a dark room?
+
+> [!TIP]
+> 💡 **Short Answer: Yes.** The user study and underlying psychophysical datasets were tested in controlled dark/dim laboratory environments (~20 lux per ITU-R BT.500 standards).
+
+Rafał Mantiuk's team (University of Cambridge & Meta Reality Labs) gathered data through the following psychophysical setup:
+
+1. **The XR-DAVID Dataset (New AR/VR User Study)**
+   * **Room Environment**: Conducted in a **controlled psychophysical dark/dim laboratory room** following standardized ITU-R BT.500 recommendations.
+   * **Display Setup**: Eizo CG3146 professional reference monitor (31.1", 4K, 1,000,000:1 contrast, calibrated daily to 300 cd/m² peak luminance).
+   * **Viewing Position**: Controlled using a physical **chin rest** set at 77 pixels per degree (PPD).
+   * **Participants**: **77 paid naïve subjects** (screened for normal color vision using Ishihara color plates).
+   * **Task**: Side-by-side pairwise comparison with active ASAP sampling, scaled into JOD units via `pwcmp`.
+
+2. **Underlying castleCSF Datasets**
+   * The contrast sensitivity model (castleCSF) was calibrated using **19 published psychophysical vision datasets** (10 achromatic, 6 chromatic, 3 mixed) from vision science literature, which were conducted in controlled dark/dim laboratory conditions with calibrated D65 screens.
+
+3. **Benchmark Datasets (UPIQ, LIVE-HDR, KADID-10k)**
+   * Benchmark datasets were also collected under standardized dim/dark lab viewing conditions (~20 lux ambient light per ITU-R BT.500).
+
+---
+
 # ColorVideoVDP: A visible difference predictor for color images and videos
 
 [Web page](https://www.cl.cam.ac.uk/research/rainbow/projects/colorvideovdp/) | [Paper](https://doi.org/10.1145/3658144)
