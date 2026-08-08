@@ -4,38 +4,14 @@
 
 ### 1. Does ColorVideoVDP consider viewer distance, screen size, and surround luminance (lux)?
 
-> [!TIP]
-> 💡 **Short Answer: Yes.** In addition to viewer distance and screen size (which define pixels per degree, `n_ppd`), ColorVideoVDP explicitly considers ambient surround illumination in **lux** (`E_ambient`) as well as screen reflectivity (`k_refl`).
+> [!NOTE]
+> 💡 **Short Answer:** It models the display screen's physical state (reflection glare & effective contrast), but **not** the viewer's external eye adaptation (e.g. outdoors in bright sunlight).
 
-#### How Ambient Lux (`E_ambient`) is Used in ColorVideoVDP
-
-In the photometric display model (`pycvvdp/display_model.py`), ambient light is processed in three key ways:
-
-1. **Screen Reflection & Effective Contrast Reduction (Physical Cause & Perceptual Impact)**
-   Ambient illumination reflecting off the screen surface creates a diffuse light floor (`Y_refl`):
-   
-   `Y_refl = (E_ambient / pi) * k_refl`
-   
-   This reflected light is added to the absolute light emitted by every pixel across the image or video:
-   
-   `Luminance = (Y_peak - Y_black) * EOTF(pixel) + Y_black + Y_refl`
-   
-   Raising the baseline light level compresses the display's **effective contrast** from its theoretical maximum down to:
-   
-   `Effective Contrast = Y_peak / (Y_black + Y_refl)`
-   
-   Perceptually, because human contrast sensitivity (castleCSF) depends on local background luminance, this higher baseline light reduces the eye's ability to detect subtle details and distortions in dark/shadow regions.
-
-2. **Dynamic HLG Gamma Adaptation**
-   For HDR content encoded with HLG (Hybrid Log-Gamma), ambient lux is used to adjust the display's target gamma according to ambient viewing conditions:
-   
-   `gamma = 1.2 + 0.42 * log10(Y_peak / 1000) - 0.07623 * log10(E_ambient / 5)`
-
-> [!WARNING]
-> ⚠️ **Limitation: Screen-Focused State vs. External Viewer Adaptation**  
-> ColorVideoVDP focuses on the physical state of the screen (reflected glare `Y_refl` and emitted pixel luminance) and the eye's local adaptation to the screen image. **It does NOT model external surround eye adaptation outside the display.**  
->  
-> *Example*: If a viewer is sitting outside on a bright sunny balcony looking at a phone screen, their pupils will constrict due to ambient sunlight, reducing overall visual sensitivity—a global surround adaptation effect that ColorVideoVDP does not track. The metric assumes the viewer's vision is adapted to the light level of the display itself.
+* ✅ **Viewer Distance & Screen Size**: Models angular resolution in pixels per degree (`n_ppd`).
+* ✅ **Screen Reflection & Glare**: Models diffuse light floor (`Y_refl = (E_ambient / pi) * k_refl`) and effective contrast reduction.
+* ✅ **Local Display Luminance Adaptation**: Models local retinal adaptation to display pixel light plus reflected glare.
+* ✅ **Dynamic HLG Gamma Adaptation**: Adjusts target gamma for HLG HDR content based on ambient lux.
+* ❌ **External Surround Eye Adaptation**: Does **NOT** model pupil constriction or retinal adaptation from bright ambient surround (e.g. sitting on a sunny balcony looking at a phone screen). Assumes the eye is adapted to the display itself.
 
 #### Setting Ambient Lux in Practice
 
